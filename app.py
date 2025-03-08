@@ -5,6 +5,18 @@ import joblib
 from scipy.stats.mstats import winsorize
 from flask_cors import CORS
 
+# ---------------- Backend Feature Limits (as per frontend and literature) ----------------
+# These limits have been gathered from liver function test references:
+# age: [18, 90]
+# Total Bilirubin: [0.1, 15.0] mg/dL    | Normal: 0.1–1.2; Mild elevation: 1.2–3.5; Moderate: 3.5–8; Severe: >8
+# Alkaline Phosphatase: [40, 1200] U/L  | Normal: 40–129; Mild: 130–300; Moderate: 300–600; Severe: >600
+# Alanine Aminotransferase (ALT): [7, 500] U/L  | Normal: 7–55; Mild: 55–150; Moderate: 150–300; Severe: >300
+# Aspartate Aminotransferase (AST): [8, 500] U/L   | Normal: 8–48; Mild: 48–150; Moderate: 150–300; Severe: >300
+# Albumin: [1.5, 5.0] g/dL            | Normal: 3.5–5.0; Moderate decrease: 2.5–3.5; Severe decrease: <2.5
+# Total Proteins: [2.0, 7.9] g/dL     | Normal: 6.3–7.9; Lower values suggest liver insufficiency
+# Prothrombin Time: [9.4, 35.0] sec   | Normal: 9.4–12.5; Mild prolongation: 12.5–20; Severe: >20
+# Platelets: [55, 450] (×10³/µL)       | Normal: 150–450; Thrombocytopenia: <150 (severe if <100)
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
@@ -31,12 +43,9 @@ def calculate_fib4_score(age, ast, alt, platelets):
 
 def generate_feature_explanations(data):
     """
-    Generate feature-based explanations, including non-liver
-    causes or reasons for abnormal results.
+    Generate detailed explanations for each feature based on updated reference ranges.
     """
-
-    # We retrieve the user's actual numeric values:
-    # (All float except Age, Platelets which are int, but we'll treat them as float for range checks.)
+    # Retrieve numeric values (all as float for consistency)
     age = float(data["Age"])
     bilirubin = float(data["Total Bilirubin"])
     alk_phos = float(data["Alkaline Phosphatase"])
@@ -46,7 +55,7 @@ def generate_feature_explanations(data):
     proteins = float(data["Total Proteins"])
     prothrombin = float(data["Prothrombin Time"])
     platelets = float(data["Platelets"])
-    ascites = data["Ascites"]   # "Present"/"Absent"
+    ascites = data["Ascites"]       # "Present"/"Absent"
     liver_firmness = data["LiverFirmness"]  # "Present"/"Absent"
     ast_alt_ratio = calculate_ast_alt_ratio(ast, alt)
     alb_glob_ratio = round(albumin / (proteins - albumin), 2) if proteins > albumin else 0
@@ -54,187 +63,184 @@ def generate_feature_explanations(data):
     explanations = []
 
     # --- Total Bilirubin ---
-    # Normal range ~ 0.1–1.2 mg/dL
     if bilirubin < 0.1:
         explanations.append(
-            f"Total Bilirubin ({bilirubin} mg/dL) is slightly below normal, which is uncommon but may occur with certain genetic conditions or lab variations."
+            f"Total Bilirubin ({bilirubin} mg/dL) is below the measurable range. This is unusual and might be due to lab variation."
         )
     elif bilirubin <= 1.2:
         explanations.append(
-            f"Total Bilirubin ({bilirubin} mg/dL) is within normal range (0.1–1.2). "
-            "Mild variations can occur from hemolysis, medication, or Gilbert's syndrome."
+            f"Total Bilirubin ({bilirubin} mg/dL) is within the normal range (0.1–1.2 mg/dL). This supports healthy liver function."
         )
     elif bilirubin <= 3.5:
         explanations.append(
-            f"Total Bilirubin ({bilirubin} mg/dL) is mildly elevated. "
-            "Possible reasons include early liver inflammation, hemolysis, or gallbladder issues."
+            f"Total Bilirubin ({bilirubin} mg/dL) is mildly elevated. Such levels are often seen in hepatitis or early inflammatory changes."
+        )
+    elif bilirubin <= 8:
+        explanations.append(
+            f"Total Bilirubin ({bilirubin} mg/dL) is moderately elevated, which may be indicative of progressing fibrosis."
         )
     else:
         explanations.append(
-            f"Total Bilirubin ({bilirubin} mg/dL) is significantly elevated. "
-            "This can arise from advanced liver disease, bile duct obstruction, or other systemic factors."
+            f"Total Bilirubin ({bilirubin} mg/dL) is severely elevated. Levels above 8 mg/dL are commonly associated with advanced liver cirrhosis or severe bile duct obstruction."
         )
 
     # --- Alkaline Phosphatase (ALP) ---
-    # Typical normal range for adults ~ 40–129 U/L (male), 35–104 U/L (female), but we keep a single approach
     if alk_phos < 40:
         explanations.append(
-            f"Alkaline Phosphatase ({alk_phos} U/L) is slightly below typical adult range. "
-            "Low ALP can occur with malnutrition or genetic factors, not necessarily liver disease."
+            f"Alkaline Phosphatase ({alk_phos} U/L) is below the expected range. This could occur due to malnutrition or genetic conditions."
         )
     elif alk_phos <= 129:
         explanations.append(
-            f"Alkaline Phosphatase ({alk_phos} U/L) is within a typical range (~40–129). "
-            "ALP can also be affected by bone growth, pregnancy, or certain medications."
+            f"Alkaline Phosphatase ({alk_phos} U/L) is within the normal range (40–129 U/L), supporting normal liver and bone metabolism."
+        )
+    elif alk_phos <= 300:
+        explanations.append(
+            f"Alkaline Phosphatase ({alk_phos} U/L) is mildly elevated. This may indicate hepatic inflammation (hepatitis) or early signs of fibrosis."
+        )
+    elif alk_phos <= 600:
+        explanations.append(
+            f"Alkaline Phosphatase ({alk_phos} U/L) is moderately elevated. Such a level can be seen in progressing fibrosis with cholestatic features."
         )
     else:
         explanations.append(
-            f"Alkaline Phosphatase ({alk_phos} U/L) is elevated. "
-            "This may reflect cholestatic liver conditions, bone disorders, or other causes."
+            f"Alkaline Phosphatase ({alk_phos} U/L) is severely elevated, which is frequently observed in advanced cirrhosis or cholestatic liver disease."
         )
 
     # --- Alanine Aminotransferase (ALT) ---
-    # Normal range roughly 7–55 U/L (male), 7–45 U/L (female); we'll use 7–55
     if alt < 7:
         explanations.append(
-            f"ALT ({alt} U/L) is slightly below the usual lower bound. "
-            "This is often clinically insignificant, but can sometimes reflect poor muscle mass or other factors."
+            f"ALT ({alt} U/L) is below the measurable range, usually not clinically significant."
         )
     elif alt <= 55:
         explanations.append(
-            f"ALT ({alt} U/L) is within normal limits (7–55). "
-            "ALT is mostly liver-specific but can vary with muscle injury or certain medications."
+            f"ALT ({alt} U/L) is within the normal range (7–55 U/L), consistent with healthy liver tissue."
+        )
+    elif alt <= 150:
+        explanations.append(
+            f"ALT ({alt} U/L) is moderately elevated. This degree of increase is often seen in hepatitis due to inflammation."
+        )
+    elif alt <= 300:
+        explanations.append(
+            f"ALT ({alt} U/L) is markedly elevated. Values in this range may suggest ongoing liver injury and early fibrosis."
         )
     else:
         explanations.append(
-            f"ALT ({alt} U/L) is elevated. "
-            "This may indicate liver cell injury, but can also be influenced by muscle damage or medications."
+            f"ALT ({alt} U/L) is severely elevated, which is commonly associated with advanced liver damage or cirrhosis."
         )
 
     # --- Aspartate Aminotransferase (AST) ---
-    # Normal range roughly 8–48 U/L
     if ast < 8:
         explanations.append(
-            f"AST ({ast} U/L) is slightly below the typical lower bound. "
-            "Usually not a concern, but extremely low AST can occur with B6 deficiency or muscle issues."
+            f"AST ({ast} U/L) is below the expected range, a finding that is typically not worrisome."
         )
     elif ast <= 48:
         explanations.append(
-            f"AST ({ast} U/L) is within normal range (8–48). "
-            "Mild fluctuations can occur from exercise, medications, or minor muscle injury."
+            f"AST ({ast} U/L) is within normal limits (8–48 U/L). This is typical of a healthy liver."
+        )
+    elif ast <= 150:
+        explanations.append(
+            f"AST ({ast} U/L) is moderately elevated. This level is often seen in hepatitis or mild liver injury."
+        )
+    elif ast <= 300:
+        explanations.append(
+            f"AST ({ast} U/L) is significantly elevated, which may indicate progression from hepatitis to fibrosis."
         )
     else:
         explanations.append(
-            f"AST ({ast} U/L) is elevated. "
-            "Causes include liver inflammation, cardiac/muscle injury, or other systemic conditions."
+            f"AST ({ast} U/L) is severely elevated, a pattern that is frequently associated with advanced liver cirrhosis."
         )
 
     # --- AST/ALT Ratio ---
     explanations.append(
-        f"AST/ALT Ratio: {ast_alt_ratio}. Ratios >2 often suggest advanced liver pathology (e.g., alcoholic liver disease), "
-        "but other factors can affect this ratio."
+        f"AST/ALT Ratio: {ast_alt_ratio}. Ratios above 2 can be suggestive of alcoholic liver disease or advanced fibrosis, while lower ratios are more typical of acute hepatitis."
     )
 
     # --- Albumin ---
-    # Normal range ~ 3.5–5.0 g/dL
-    if albumin < 3.5:
+    if albumin < 1.5:
         explanations.append(
-            f"Albumin ({albumin} g/dL) is below normal (3.5–5.0). "
-            "Low albumin can indicate liver dysfunction, poor nutrition, or chronic illness."
+            f"Albumin ({albumin} g/dL) is extremely low. This is a rare finding and may indicate severe liver dysfunction."
         )
-    elif albumin <= 5.0:
+    elif albumin < 2.5:
         explanations.append(
-            f"Albumin ({albumin} g/dL) is within normal range (3.5–5.0). "
-            "Variations can occur with hydration status, diet, and inflammation."
+            f"Albumin ({albumin} g/dL) is severely decreased. Such low levels are often observed in advanced cirrhosis."
+        )
+    elif albumin < 3.5:
+        explanations.append(
+            f"Albumin ({albumin} g/dL) is moderately low. This may be seen in fibrosis or chronic liver inflammation."
         )
     else:
         explanations.append(
-            f"Albumin ({albumin} g/dL) is slightly above typical range. "
-            "This is uncommon and may reflect dehydration or lab error. Rarely pathological."
+            f"Albumin ({albumin} g/dL) is within the normal range (3.5–5.0 g/dL), indicating good synthetic liver function."
         )
 
     # --- Total Proteins ---
-    # Normal range ~ 6.3–7.9 g/dL
     if proteins < 6.3:
         explanations.append(
-            f"Total Proteins ({proteins} g/dL) are below normal (6.3–7.9). "
-            "Low levels can result from liver issues, malnutrition, or kidney losses."
+            f"Total Proteins ({proteins} g/dL) are below the normal range (6.3–7.9 g/dL), suggesting possible liver insufficiency or malnutrition."
         )
     elif proteins <= 7.9:
         explanations.append(
-            f"Total Proteins ({proteins} g/dL) are within normal range (6.3–7.9). "
-            "Slight variations can be due to hydration or diet."
+            f"Total Proteins ({proteins} g/dL) are within normal limits (6.3–7.9 g/dL)."
         )
     else:
         explanations.append(
-            f"Total Proteins ({proteins} g/dL) exceed normal range. "
-            "Possible causes include chronic inflammation, infections, or certain blood disorders."
+            f"Total Proteins ({proteins} g/dL) are elevated. Although uncommon in liver disease, this could indicate chronic inflammation or other systemic conditions."
         )
 
     # --- Prothrombin Time (PT) ---
-    # Normal range ~ 9.4–12.5 seconds
     if prothrombin < 9.4:
         explanations.append(
-            f"Prothrombin Time ({prothrombin}s) is below the usual lower limit (9.4s). "
-            "Faster clotting is less common but can occur with certain genetic factors or lab variation."
+            f"Prothrombin Time ({prothrombin}s) is below the expected range, which is rarely seen and usually not concerning."
         )
     elif prothrombin <= 12.5:
         explanations.append(
-            f"Prothrombin Time ({prothrombin}s) is within normal range (9.4–12.5s). "
-            "Clotting function appears adequate; mild deviations can occur with vitamin K intake."
+            f"Prothrombin Time ({prothrombin}s) is within the normal range (9.4–12.5s), suggesting adequate clotting factor synthesis."
+        )
+    elif prothrombin <= 20:
+        explanations.append(
+            f"Prothrombin Time ({prothrombin}s) is moderately prolonged. This can be an early indicator of liver dysfunction or fibrosis."
         )
     else:
         explanations.append(
-            f"Prothrombin Time ({prothrombin}s) is prolonged. "
-            "This may reflect decreased liver synthesis of clotting factors, vitamin K deficiency, or anticoagulant use."
+            f"Prothrombin Time ({prothrombin}s) is severely prolonged. Values above 20 seconds are frequently observed in advanced cirrhosis due to impaired liver synthesis of clotting factors."
         )
 
     # --- Platelets ---
-    # Normal range ~ 150–450 ×10³/µL
-    if platelets < 150:
+    if platelets < 55:
         explanations.append(
-            f"Platelets ({platelets} ×10³/µL) are below normal (150–450). "
-            "Thrombocytopenia can occur with liver disease, immune conditions, or bone marrow issues."
+            f"Platelets ({platelets} ×10³/µL) are extremely low, which is concerning and can be seen in severe liver disease or bone marrow suppression."
         )
-    elif platelets <= 450:
+    elif platelets < 150:
         explanations.append(
-            f"Platelets ({platelets} ×10³/µL) are within normal range (150–450). "
-            "Slight variations can occur from infection, inflammation, or pregnancy."
+            f"Platelets ({platelets} ×10³/µL) are below normal. Thrombocytopenia is common in liver disease, particularly in cirrhosis due to splenic sequestration."
         )
     else:
         explanations.append(
-            f"Platelets ({platelets} ×10³/µL) are above normal. "
-            "Thrombocytosis may result from inflammation, iron deficiency, or reactive processes."
+            f"Platelets ({platelets} ×10³/µL) are within the normal range (150–450 ×10³/µL), which is a positive sign regarding liver health."
         )
 
     # --- Albumin/Globulin Ratio ---
     explanations.append(
-        f"Albumin Globulin Ratio: {alb_glob_ratio}. "
-        "A low A/G ratio (<1.0) may suggest chronic inflammation or liver issues, "
-        "while a higher ratio is often normal but can vary with diet or dehydration."
+        f"Albumin/Globulin Ratio: {alb_glob_ratio}. A low ratio (<1.0) may be seen in chronic liver disease and inflammation, while a normal or high ratio is generally reassuring."
     )
 
-    # --- Ascites / Liver Firmness (Qualitative) ---
+    # --- Qualitative Findings: Ascites and Liver Firmness ---
     if ascites == "Present":
         explanations.append(
-            "Ascites is reported as Present. While often associated with advanced liver disease, "
-            "it can also occur in heart failure, kidney problems, or certain cancers."
+            "Ascites is reported as Present. This is often associated with advanced liver disease (fibrosis or cirrhosis) but may also occur with heart or kidney issues."
         )
     else:
         explanations.append(
-            "Ascites is reported as Absent. This reduces the likelihood of severe fluid retention "
-            "commonly seen in advanced liver or cardiac conditions."
+            "Ascites is reported as Absent, which is more typical of healthy livers or early-stage disease."
         )
 
     if liver_firmness == "Present":
         explanations.append(
-            "Liver Firmness is reported as Present, indicating possible fibrosis or cirrhosis. "
-            "However, imaging or elastography is needed for confirmation."
+            "Liver Firmness is reported as Present. This may indicate fibrosis or cirrhosis; further imaging (like elastography) is recommended for confirmation."
         )
     else:
         explanations.append(
-            "Liver Firmness is reported as Absent. This suggests no clinically detected stiffness, "
-            "though early fibrosis may still be undetectable without imaging."
+            "Liver Firmness is reported as Absent, suggesting no overt signs of advanced scarring, although early fibrosis might not be palpable."
         )
 
     return explanations
@@ -299,20 +305,20 @@ def predict():
 
         print("✅ Processed Input Data:\n", input_data)
 
-        # Apply log transformation
+        # Apply log transformation to specified columns
         input_data[log_transform_cols] = np.log1p(input_data[log_transform_cols])
 
         # Apply winsorization
         for col in winsorize_cols:
             input_data[col] = winsorize(input_data[col], limits=[0.05, 0.05])
 
-        # Ensure correct column order
+        # Ensure correct column order for the scaler
         input_data = input_data[scaler.feature_names_in_]
 
         # Apply scaling
         input_scaled = scaler.transform(input_data)
 
-        # Make prediction
+        # Make prediction using the loaded model
         predicted_class = voting_clf.predict(input_scaled)[0]
 
         # Map prediction to disease stage
@@ -323,15 +329,27 @@ def predict():
             3: "Cirrhosis (Severe Liver Damage)"
         }
 
-        # Basic explanation for each stage (optional)
+        # Enhanced explanations for each stage based on test value ranges:
         stage_explanation = {
-            0: "Overall values suggest normal liver function. Minor variations may still occur.",
-            1: "Liver inflammation indicated. Further tests may be needed to confirm cause (viral, autoimmune, etc.).",
-            2: "Signs of liver scarring (fibrosis). Condition may be chronic; consult a specialist.",
-            3: "Advanced liver damage (cirrhosis) detected. Urgent medical follow-up recommended."
+            0: (
+                "Liver function tests are within normal ranges: bilirubin (0.1–1.2 mg/dL), ALP (40–129 U/L), "
+                "ALT (7–55 U/L), AST (8–48 U/L), albumin (3.5–5.0 g/dL) and PT (9.4–12.5 s). These findings indicate a healthy liver."
+            ),
+            1: (
+                "Mild to moderate enzyme elevations (e.g., ALT and AST up to ~150 U/L) with slight bilirubin increase (1.2–3.5 mg/dL) "
+                "suggest liver inflammation typical of hepatitis. Further serological tests may help determine the cause."
+            ),
+            2: (
+                "Moderate increases in liver enzymes (ALT/AST in the 150–300 U/L range), bilirubin in the 3.5–8 mg/dL range, "
+                "a falling albumin level, and a modestly prolonged PT point toward the development of fibrosis. Imaging and follow-up are advised."
+            ),
+            3: (
+                "Severely abnormal liver tests—with ALT/AST >300 U/L, bilirubin >8 mg/dL, albumin <2.5 g/dL, and PT >20 s—combined with thrombocytopenia "
+                "strongly suggest advanced cirrhosis. Immediate specialist evaluation and management are recommended."
+            )
         }
 
-        # Generate feature-level explanations
+        # Generate detailed feature-level explanations
         feature_explanations = generate_feature_explanations({
             "Age": data["Age"],
             "Total Bilirubin": data["Total Bilirubin"],
