@@ -261,6 +261,7 @@ def predict():
             "Predicted Stage": final_stage,
             "Stage Explanation": stage_explanations.get(predicted_class, "No explanation available."),
             "Feature Explanations": feature_explanations,
+            "AFLD Indicator": "Positive (Suggestive of AFLD)" if afld_indicator == 1 else "Negative",
             "Ascites": "Present" if ascites == 1 else "Absent",
             "LiverFirmness": "Present" if liver_firmness == 1 else "Absent",
             "Calculated Values": {
