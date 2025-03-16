@@ -37,11 +37,7 @@ NORMAL_RANGES = {
     "Platelets": (150, 450)
 }
 
-# Stage‑specific expected ranges (illustrative values based on literature and updated input limits)
-# Typical trends:
-# - Hepatitis: moderate enzyme elevations.
-# - Fibrosis: further enzyme elevations with worsening synthetic function.
-# - Cirrhosis: markedly high bilirubin/ALP, low albumin, prolonged PT, and low platelets.
+# Stage‑specific expected thresholds (illustrative values)
 THRESHOLDS_BY_STAGE = {
     0: {  # Healthy
         "Total Bilirubin": (0.1, 1.2),
@@ -76,7 +72,7 @@ THRESHOLDS_BY_STAGE = {
     3: {  # Cirrhosis (Advanced Damage)
         "Total Bilirubin": (3.5, 15.0),
         "Alkaline Phosphatase": (120, 1200),
-        "ALT": (50, 500),   # ALT may be lower in cirrhosis due to decreased hepatocyte mass
+        "ALT": (50, 500),   # ALT may be lower in cirrhosis due to reduced hepatocyte mass
         "AST": (80, 500),
         "Albumin": (1.5, 3.0),
         "Total Proteins": (4.5, 7.0),
@@ -94,10 +90,10 @@ stage_mapping = {
 }
 
 stage_explanations = {
-    0: ("Liver function tests are within normal ranges, supporting a healthy liver."),
-    1: ("Moderate elevations in liver enzymes and bilirubin suggest liver inflammation typical of hepatitis."),
-    2: ("Further elevations in enzymes, a moderate rise in bilirubin, reduced albumin, and a prolonged PT point toward fibrosis. Further evaluation is advised."),
-    3: ("Severely abnormal test values – markedly elevated bilirubin and ALP, low albumin, prolonged PT, and thrombocytopenia – strongly indicate advanced cirrhosis. Immediate specialist evaluation is recommended.")
+    0: "Liver function tests are within normal limits, supporting a healthy liver.",
+    1: "Moderate elevations in liver enzymes and bilirubin suggest liver inflammation typical of hepatitis.",
+    2: "Further enzyme elevations, a moderate rise in bilirubin, reduced albumin, and prolonged clotting point toward fibrosis; further evaluation is advised.",
+    3: "Markedly abnormal test values – significantly elevated bilirubin and alkaline phosphatase, low albumin, prolonged clotting time, and low platelets – strongly indicate advanced cirrhosis; immediate specialist evaluation is recommended."
 }
 
 def calculate_ast_alt_ratio(ast, alt):
@@ -109,8 +105,7 @@ def calculate_fib4_score(age, ast, alt, platelets):
 def generate_feature_explanations(data, predicted_class):
     """
     Generate detailed explanations for each lab feature using stage‑specific thresholds.
-    Each explanation compares the patient value with the expected range for the predicted stage,
-    providing descriptive context on whether the value is low, within range, or elevated.
+    The output messages use descriptive language without revealing internal threshold values.
     """
     explanations = []
     # Extract patient values
@@ -129,72 +124,72 @@ def generate_feature_explanations(data, predicted_class):
     ast_alt_ratio = calculate_ast_alt_ratio(ast, alt)
     alb_glob_ratio = round(albumin / (proteins - albumin), 2) if proteins > albumin else 0
 
-    # Get thresholds for the predicted stage; fallback to NORMAL_RANGES if not found
+    # Get stage-specific thresholds; fallback to NORMAL_RANGES if not found
     thresholds = THRESHOLDS_BY_STAGE.get(predicted_class, NORMAL_RANGES)
     isHealthy = (predicted_class == 0)
 
     def explain_value(name, value):
         low, high = thresholds.get(name, (None, None))
         if low is None or high is None:
-            return f"{name}: {value} (No specific threshold available.)"
+            return f"{name} is {value}."
         
         if value < low:
-            msg = f"{name} is {value}, which is below the expected range of {low}–{high}. "
-            msg += "A value this low might be due to individual variation or even a lab error. "
+            msg = f"{name} is {value}, which is lower than what is typically observed. "
+            msg += "This might be due to individual variation or a lab anomaly. "
             if isHealthy:
-                msg += "Although overall liver function appears healthy, this anomaly suggests it may be prudent to recheck the value."
+                msg += "Even with a generally healthy liver, it might be wise to recheck this value."
             else:
-                msg += "In the context of liver disease, lower-than-expected values may sometimes be observed; however, it still merits careful evaluation."
+                msg += "In the setting of liver disease, lower-than-typical values can sometimes occur, but this should still be evaluated carefully."
             return msg
         elif value > high:
-            msg = f"{name} is {value}, which is elevated compared to the expected range of {low}–{high}. "
-            msg += "This elevation is concerning as it can be indicative of liver injury or dysfunction. "
+            msg = f"{name} is {value}, which is higher than what is normally seen. "
+            msg += "This elevation may indicate liver injury or dysfunction. "
             if isHealthy:
-                msg += "Even though the overall prediction is healthy, this abnormality may warrant further investigation."
+                msg += "Even though the overall assessment is healthy, this abnormality might require further investigation."
             else:
-                msg += "Such an elevated value is consistent with the expected changes in this stage of liver disease and should be interpreted alongside other clinical findings."
+                msg += "This finding is in line with the changes seen in this stage of liver disease and should be interpreted along with other clinical data."
             return msg
         else:
-            return f"{name} is {value}, which falls within the expected range of {low}–{high}. This is a reassuring finding."
+            return f"{name} is {value} and falls within normal limits. This is reassuring."
 
     explanations.append(explain_value("Total Bilirubin", bilirubin))
     explanations.append(explain_value("Alkaline Phosphatase", alk_phos))
     explanations.append(explain_value("ALT", alt))
     explanations.append(explain_value("AST", ast))
-    explanations.append(f"AST/ALT Ratio is {ast_alt_ratio}. Typically, ratios above 2 may indicate alcoholic injury or advanced fibrosis, whereas lower ratios are more common in healthy livers or acute inflammation.")
+    explanations.append(f"AST/ALT Ratio is {ast_alt_ratio}. Ratios above 2 may suggest alcoholic injury or advanced fibrosis, while lower ratios are more common in healthy livers or acute inflammation.")
     explanations.append(explain_value("Albumin", albumin))
     explanations.append(explain_value("Total Proteins", proteins))
     explanations.append(explain_value("Prothrombin Time", prothrombin))
     
-    # Special handling for Platelets (different thresholds may apply)
+    # Special handling for Platelets
     plat_low, plat_high = thresholds.get("Platelets", (150, 450))
     if platelets < plat_low:
-        msg = f"Platelets are {platelets} ×10³/µL, which is below the expected range of {plat_low}–{plat_high}. "
-        msg += "Low platelet counts can be associated with portal hypertension and splenic sequestration, particularly in advanced liver disease. "
+        msg = f"Platelets are {platelets} ×10³/µL, which is lower than typical values. "
+        msg += "Low platelets can be associated with portal hypertension and splenic sequestration. "
         if isHealthy:
-            msg += "Even with an overall healthy prediction, this warrants a recheck."
+            msg += "Even with a healthy overall picture, this value might warrant a recheck."
         platelets_msg = msg
     elif platelets > plat_high:
-        msg = f"Platelets are {platelets} ×10³/µL, which is above the expected range of {plat_low}–{plat_high}. "
-        msg += "An elevated platelet count may be reactive, but it is less typical in liver disease. "
+        msg = f"Platelets are {platelets} ×10³/µL, which is higher than normal. "
+        msg += "While this may be reactive, it is less common in liver disease. "
         if isHealthy:
-            msg += "Further evaluation may still be needed despite a healthy overall classification."
+            msg += "Further evaluation may still be appropriate."
         platelets_msg = msg
     else:
-        platelets_msg = f"Platelets are {platelets} ×10³/µL, which falls within the expected range of {plat_low}–{plat_high}. This is reassuring."
+        platelets_msg = f"Platelets are {platelets} ×10³/µL and within normal limits, which is reassuring."
     explanations.append(platelets_msg)
 
-    explanations.append(f"Albumin/Globulin Ratio is {alb_glob_ratio}. A lower ratio (often below 1.0) may indicate chronic inflammation or liver scarring.")
+    explanations.append(f"Albumin/Globulin Ratio is {alb_glob_ratio}. A lower ratio may indicate chronic inflammation or liver scarring.")
     
     if ascites == "Present":
-        explanations.append("Ascites is reported as Present. This is concerning as it often indicates fluid accumulation due to advanced liver disease (e.g., cirrhosis) and increased portal pressure.")
+        explanations.append("Ascites is reported as Present. This finding is concerning as it can indicate fluid accumulation from advanced liver disease.")
     else:
-        explanations.append("Ascites is reported as Absent, which is a favorable sign and consistent with either a healthy liver or early-stage liver conditions.")
+        explanations.append("Ascites is reported as Absent, which is a favorable sign and consistent with a healthy or early-stage liver.")
     
     if liver_firmness == "Present":
-        explanations.append("Liver Firmness is reported as Present. This finding suggests that there may be significant fibrosis or cirrhosis, and further evaluation using imaging or elastography is recommended.")
+        explanations.append("Liver Firmness is reported as Present, suggesting possible fibrosis or cirrhosis. Further evaluation with imaging or elastography is recommended.")
     else:
-        explanations.append("Liver Firmness is reported as Absent, indicating that there are no overt signs of advanced scarring; however, early fibrosis cannot be completely ruled out.")
+        explanations.append("Liver Firmness is reported as Absent, indicating no overt signs of advanced scarring, although early fibrosis cannot be completely ruled out.")
     
     return explanations
 
