@@ -197,7 +197,7 @@ def generate_feature_explanations(data, predicted_class):
 def home():
     return jsonify({"message": "Liver Disease Prediction API is running!"})
 
-@app.route('/predict', methods=['POST'])
+@app.route('/', methods=['POST'])
 def predict():
     try:
         data = request.get_json()
